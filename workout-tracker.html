@@ -178,21 +178,6 @@ label:first-child { margin-top: 0; }
 .cond-btn.active { border-color: var(--accent); background: var(--accent-dim); }
 .cond-btn.active .lbl { color: var(--accent); }
 
-/* Timer */
-.timer-face {
-  text-align: center;
-  padding: 8px 0 12px;
-}
-.timer-time {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 48px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: -1px;
-  line-height: 1;
-}
-.timer-controls { display: flex; gap: 8px; margin-top: 12px; }
-.timer-controls .btn { flex: 1; justify-content: center; }
 
 /* History */
 .date-group { margin-bottom: 20px; }
@@ -338,25 +323,8 @@ label:first-child { margin-top: 0; }
     <textarea id="memo" placeholder="フォームの気づき、体調など…"></textarea>
   </div>
 
-  <div class="card">
-    <div class="card-label">タイマー</div>
-    <div class="timer-face">
-      <div class="timer-time" id="timer-disp">0:00</div>
-    </div>
-    <div class="timer-controls">
-      <button class="btn" id="timer-toggle-btn" onclick="timerToggle()">
-        <svg id="timer-icon" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
-        <span id="timer-label">開始</span>
-      </button>
-      <button class="btn" onclick="timerReset()">
-        <svg viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-4.91"/></svg>
-        リセット
-      </button>
-    </div>
-  </div>
-
   <button class="btn btn-accent" onclick="saveWorkout()">保存する</button>
-  <div style="height:20px"></div>
+  <div style="height:80px"></div>
 </div>
 
 <!-- History Page -->
@@ -370,7 +338,7 @@ label:first-child { margin-top: 0; }
     </select>
   </div>
   <div id="history-body"></div>
-  <div style="height:20px"></div>
+  <div style="height:80px"></div>
 </div>
 
 <!-- Stats Page -->
@@ -400,7 +368,7 @@ label:first-child { margin-top: 0; }
     <select class="graph-select" id="graph-sel" onchange="drawGraph()"></select>
     <div class="chart-area"><canvas id="graph-canvas"></canvas></div>
   </div>
-  <div style="height:20px"></div>
+  <div style="height:80px"></div>
 </div>
 
 <!-- Bottom Nav -->
@@ -426,13 +394,12 @@ label:first-child { margin-top: 0; }
 let workouts = JSON.parse(localStorage.getItem('liftlog_v2') || '[]');
 let sets = [];
 let cond = '';
-let timerSec = 0, timerOn = false, timerTick = null;
+
 let chartInst = null;
 
 // ── Helpers ──
 function save() { localStorage.setItem('liftlog_v2', JSON.stringify(workouts)); }
 function today() { return new Date().toISOString().slice(0,10); }
-function fmt(sec) { return Math.floor(sec/60)+':'+(sec%60+'').padStart(2,'0'); }
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -501,23 +468,6 @@ function pickCond(btn) {
   cond = btn.dataset.v;
 }
 
-// Timer
-function timerToggle() {
-  timerOn = !timerOn;
-  const icon = document.getElementById('timer-icon');
-  document.getElementById('timer-label').textContent = timerOn?'停止':'開始';
-  icon.innerHTML = timerOn
-    ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
-    : '<polygon points="5,3 19,12 5,21"/>';
-  if(timerOn){ timerTick=setInterval(()=>{ timerSec++; document.getElementById('timer-disp').textContent=fmt(timerSec); },1000); }
-  else { clearInterval(timerTick); }
-}
-function timerReset() {
-  clearInterval(timerTick); timerOn=false; timerSec=0;
-  document.getElementById('timer-disp').textContent='0:00';
-  document.getElementById('timer-label').textContent='開始';
-  document.getElementById('timer-icon').innerHTML='<polygon points="5,3 19,12 5,21"/>';
-}
 
 function saveWorkout() {
   const name = document.getElementById('ex-name').value.trim();
@@ -531,7 +481,7 @@ function saveWorkout() {
     sets: validSets.map(s=>({w:parseFloat(s.w),r:parseInt(s.r)})),
     cond,
     memo: document.getElementById('memo').value.trim(),
-    dur: timerSec
+    dur: 0
   });
   save();
   // Reset
@@ -540,7 +490,6 @@ function saveWorkout() {
   document.getElementById('sets-container').innerHTML='';
   sets=[]; cond='';
   document.querySelectorAll('.cond-btn').forEach(b=>b.classList.remove('active'));
-  timerReset();
   updateSuggestions();
   toast('✓ 保存しました');
 }
