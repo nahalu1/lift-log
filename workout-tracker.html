@@ -301,6 +301,53 @@ label:first-child { margin-top: 0; }
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
 .empty svg { width: 40px; height: 40px; stroke: var(--border2); fill: none; stroke-width: 1.5; margin: 0 auto 12px; display: block; }
 
+/* Delete button on entry */
+.entry-delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+.entry-delete:active { color: var(--red); background: rgba(255,82,82,0.1); }
+.entry-delete svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+/* Confirm dialog */
+.dialog-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.dialog-overlay.show { display: flex; }
+.dialog-box {
+  background: var(--surface);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%;
+  max-width: 320px;
+}
+.dialog-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.dialog-msg { font-size: 14px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+.dialog-btns { display: flex; gap: 8px; }
+.dialog-btns button { flex: 1; }
+.btn-red { background: var(--red); color: white; border-color: var(--red); font-weight: 600; justify-content: center; }
+.btn-red:active { opacity: 0.85; }
+
+/* Export/Import */
+.data-btns { display: flex; gap: 8px; margin-bottom: 12px; }
+.data-btns button { flex: 1; justify-content: center; font-size: 13px; }
+
 /* Toast */
 .toast {
   position: fixed;
@@ -377,6 +424,17 @@ label:first-child { margin-top: 0; }
   <div class="page-header">
     <h1>履歴</h1>
   </div>
+  <div class="data-btns">
+    <button class="btn" onclick="exportData()">
+      <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      エクスポート
+    </button>
+    <button class="btn" onclick="document.getElementById('import-input').click()">
+      <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      インポート
+    </button>
+    <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)" />
+  </div>
   <div style="margin-bottom:12px">
     <select id="hist-filter" onchange="renderHistory()">
       <option value="">すべての種目</option>
@@ -416,6 +474,18 @@ label:first-child { margin-top: 0; }
   <div style="height:80px"></div>
 </div>
 
+<!-- Confirm Dialog -->
+<div class="dialog-overlay" id="confirm-dialog">
+  <div class="dialog-box">
+    <div class="dialog-title">記録を削除</div>
+    <div class="dialog-msg" id="confirm-msg"></div>
+    <div class="dialog-btns">
+      <button class="btn" onclick="closeDialog()">キャンセル</button>
+      <button class="btn btn-red" id="confirm-ok" onclick="confirmDelete()">削除する</button>
+    </div>
+  </div>
+</div>
+
 <!-- Bottom Nav -->
 <nav>
   <button class="nav-btn active" id="nav-record" onclick="switchPage('record')">
@@ -439,7 +509,7 @@ label:first-child { margin-top: 0; }
 let workouts = JSON.parse(localStorage.getItem('liftlog_v2') || '[]');
 let sets = [];
 let cond = '';
-
+let deleteTargetId = null;
 let chartInst = null;
 
 // ── Helpers ──
@@ -605,6 +675,9 @@ function renderHistory() {
       return `<div class="workout-entry">
         <div class="entry-top">
           <div class="entry-name">${w.name}${isPB?'<span class="pb-pill">PB</span>':''}</div>
+          <button class="entry-delete" onclick="askDelete(${w.id},'${w.name}')" aria-label="削除">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
         </div>
         <div class="entry-sets">${setsStr}</div>
         <div class="entry-meta">${dur}${condEl}</div>
@@ -663,6 +736,67 @@ function drawGraph() {
     data:{ labels, datasets:[{ data:vals, borderColor:'#c8f542', backgroundColor:'rgba(200,245,66,0.07)', tension:0.35, pointRadius:4, pointBackgroundColor:'#c8f542', pointBorderColor:'#0f0f0f', pointBorderWidth:1.5, fill:true }] },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#1a1a1a', borderColor:'rgba(255,255,255,0.1)', borderWidth:0.5, titleColor:'#888', bodyColor:'#c8f542', bodyFont:{family:'JetBrains Mono',size:14,weight:'500'}, callbacks:{ label:ctx=>' '+ctx.parsed.y+' kg' } } }, scales:{ x:{ ticks:{color:'#888',font:{size:11}}, grid:{color:'rgba(255,255,255,0.04)'} }, y:{ ticks:{color:'#888',font:{size:11,family:'JetBrains Mono'},callback:v=>v+'kg'}, grid:{color:'rgba(255,255,255,0.04)'} } } }
   });
+}
+
+// ── Delete ──
+function askDelete(id, name) {
+  deleteTargetId = id;
+  document.getElementById('confirm-msg').textContent = `「${name}」の記録を削除します。この操作は取り消せません。`;
+  document.getElementById('confirm-dialog').classList.add('show');
+}
+
+function closeDialog() {
+  document.getElementById('confirm-dialog').classList.remove('show');
+  deleteTargetId = null;
+}
+
+function confirmDelete() {
+  if(deleteTargetId===null) return;
+  workouts = workouts.filter(w=>w.id!==deleteTargetId);
+  save();
+  closeDialog();
+  buildFilterOpts();
+  renderHistory();
+  toast('削除しました');
+}
+
+// ── Export / Import ──
+function exportData() {
+  if(!workouts.length){ toast('エクスポートするデータがありません'); return; }
+  const json = JSON.stringify(workouts, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `liftlog_${today()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('エクスポートしました');
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if(!Array.isArray(data)) throw new Error();
+      const merged = [...workouts];
+      const existingIds = new Set(workouts.map(w=>w.id));
+      data.forEach(w=>{ if(!existingIds.has(w.id)) merged.push(w); });
+      merged.sort((a,b)=>b.id-a.id);
+      workouts = merged;
+      save();
+      buildFilterOpts();
+      renderHistory();
+      toast(`✓ ${data.length}件をインポートしました`);
+    } catch {
+      toast('ファイルの形式が正しくありません');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
 }
 
 // Init
