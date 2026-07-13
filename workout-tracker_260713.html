@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <link rel="apple-touch-icon" href="lift_log_icon.png">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -154,9 +153,9 @@ label:first-child { margin-top: 0; }
 .btn-full { width: 100%; justify-content: center; }
 
 /* Sets */
-.sets-header { display: grid; grid-template-columns: 28px 1fr 1fr 28px; gap: 8px; padding: 0 2px; margin-bottom: 6px; }
+.sets-header { display: grid; grid-template-columns: 28px 1fr 1fr 52px 28px; gap: 6px; padding: 0 2px; margin-bottom: 6px; }
 .sets-header span { font-size: 11px; color: var(--muted); text-align: center; }
-.set-row { display: grid; grid-template-columns: 28px 1fr 1fr 28px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.set-row { display: grid; grid-template-columns: 28px 1fr 1fr 52px 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
 .set-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); text-align: center; }
 .set-row input { text-align: center; padding: 10px 6px; }
 .remove-set { background: none; border: none; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 36px; border-radius: 6px; }
@@ -260,6 +259,43 @@ label:first-child { margin-top: 0; }
 .graph-select { margin-bottom: 10px; }
 .chart-area { position: relative; height: 180px; }
 
+/* Past exercise picker */
+.ex-picker-wrap { margin-top: 10px; }
+.ex-picker-scroll { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ex-chip {
+  background: var(--surface2);
+  border: 0.5px solid var(--border2);
+  border-radius: 99px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.ex-chip:active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* Assist toggle */
+.assist-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  padding: 0 6px;
+  cursor: pointer;
+  height: 36px;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.assist-toggle.on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
 /* Empty */
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
 .empty svg { width: 40px; height: 40px; stroke: var(--border2); fill: none; stroke-width: 1.5; margin: 0 auto 12px; display: block; }
@@ -296,14 +332,21 @@ label:first-child { margin-top: 0; }
 
   <div class="card">
     <div class="card-label">種目</div>
-    <input type="text" id="ex-name" placeholder="例：ベンチプレス" list="ex-suggestions" />
-    <datalist id="ex-suggestions"></datalist>
+    <input type="text" id="ex-name" placeholder="例：ベンチプレス" />
+    <div class="ex-picker-wrap" id="ex-picker-wrap" style="display:none">
+      <div style="font-size:11px;color:var(--muted)">過去の種目</div>
+      <div class="ex-picker-scroll" id="ex-chips"></div>
+    </div>
+    <button class="btn btn-ghost btn-full" id="ex-picker-btn" onclick="toggleExPicker()" style="margin-top:8px;font-size:13px">
+      <svg viewBox="0 0 24 24" style="width:15px;height:15px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      過去の種目から選ぶ
+    </button>
   </div>
 
   <div class="card">
     <div class="card-label">セット</div>
     <div class="sets-header">
-      <span></span><span>重量 kg</span><span>回数</span><span></span>
+      <span></span><span>重量 kg</span><span>回数</span><span>補助</span><span></span>
     </div>
     <div id="sets-container"></div>
     <button class="btn btn-ghost btn-full" onclick="addSet()" style="margin-top:4px">
@@ -430,7 +473,7 @@ function updateSuggestions() {
 
 function addSet() {
   const idx = sets.length;
-  sets.push({w:'',r:''});
+  sets.push({w:'',r:'',assist:false});
   const c = document.getElementById('sets-container');
   const row = document.createElement('div');
   row.className = 'set-row';
@@ -439,6 +482,7 @@ function addSet() {
     <span class="set-num">${idx+1}</span>
     <input type="number" inputmode="decimal" placeholder="60" min="0" step="0.5" value="${sets[idx].w}" oninput="sets[${idx}].w=this.value" />
     <input type="number" inputmode="numeric" placeholder="10" min="1" value="${sets[idx].r}" oninput="sets[${idx}].r=this.value" />
+    <button class="assist-toggle" id="assist-${idx}" onclick="toggleAssist(${idx},this)">補助</button>
     <button class="remove-set" onclick="removeSet(${idx},this)" aria-label="削除">
       <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>`;
@@ -460,7 +504,32 @@ function rebuildSets() {
     r.querySelector('span').textContent=i+1;
     const ins=r.querySelectorAll('input');
     ins[0].value=sets[i].w; ins[1].value=sets[i].r;
+    const ab=r.querySelector('.assist-toggle');
+    if(ab&&sets[i].assist) ab.classList.add('on');
   });
+}
+
+function toggleAssist(idx, btn) {
+  sets[idx].assist = !sets[idx].assist;
+  btn.classList.toggle('on', sets[idx].assist);
+}
+
+function toggleExPicker() {
+  const wrap = document.getElementById('ex-picker-wrap');
+  const btn = document.getElementById('ex-picker-btn');
+  const names = allNames();
+  if(!names.length){ toast('まだ記録がありません'); return; }
+  const isOpen = wrap.style.display !== 'none';
+  if(isOpen){ wrap.style.display='none'; return; }
+  document.getElementById('ex-chips').innerHTML = names.map(n=>
+    `<button class="ex-chip" onclick="pickExercise('${n.replace(/'/g,"\\'")}')">${n}</button>`
+  ).join('');
+  wrap.style.display='block';
+}
+
+function pickExercise(name) {
+  document.getElementById('ex-name').value = name;
+  document.getElementById('ex-picker-wrap').style.display='none';
 }
 
 function pickCond(btn) {
@@ -479,7 +548,7 @@ function saveWorkout() {
     id: Date.now(),
     date: today(),
     name,
-    sets: validSets.map(s=>({w:parseFloat(s.w),r:parseInt(s.r)})),
+    sets: validSets.map(s=>({w:parseFloat(s.w),r:parseInt(s.r),assist:!!s.assist})),
     cond,
     memo: document.getElementById('memo').value.trim(),
     dur: 0
@@ -528,7 +597,7 @@ function renderHistory() {
     const items = ws.map(w=>{
       const mx=Math.max(...w.sets.map(s=>s.w));
       const isPB = pbs[w.name]&&pbs[w.name].id===w.id;
-      const setsStr = w.sets.map((s,i)=>`${i+1}. ${s.w}kg×${s.r}`).join('　');
+      const setsStr = w.sets.map((s,i)=>`${i+1}. ${s.w}kg×${s.r}${s.assist?' 補':''}` ).join('　');
       const dur = w.dur>0?`<span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${Math.floor(w.dur/60)}分</span>`:'';
       const condEl = w.cond?`<span>${w.cond}</span>`:'';
       const memo = w.memo?`<div class="entry-memo">${w.memo}</div>`:'';
